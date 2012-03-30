@@ -34,6 +34,9 @@ class BytesBuffer {
 	var b : String;
 	#elseif cpp
 	var b : BytesData;
+	#elseif js
+	var b : Dynamic; // Bytes for typedArray, Array<Int> if not supported 
+	var size : Int;
 	#else
 	var b : Array<Int>;
 	#end
@@ -47,6 +50,8 @@ class BytesBuffer {
 		b = "";
 		#elseif cpp
 		b = new BytesData();
+		#elseif js
+		b = Bytes.alloc(0);
 		#else
 		b = new Array();
 		#end
@@ -61,10 +66,32 @@ class BytesBuffer {
 		b += untyped __call__("chr", byte);
 		#elseif cpp
 		b.push(untyped byte);
+		#elseif js 
+		if (js.Lib.isTypedArraySupported) {
+			if (size == b.length) { // we need to grow?
+				var newSize = Math.max(Math.max(b.length * 2), 4); // duplicate size
+				growTo(newSize);
+			}
+			b[size++] = byte;
+		}
+		else {
+			b.push(byte);
+		}
 		#else
 		b.push(byte);
 		#end
 	}
+	
+	#if js 
+	// Grows the Uint8Array to the desired size
+	private function growTo(length:Int) : Void {
+		if (length > b.length) { // do we need to resize?
+			var oldB = b; // create new buffer
+			b = Bytes.alloc(length);
+			b.blit(0, oldB, 0, Math.min(b.length, oldB.length)); // blit old data to new buffer
+		}
+	}
+	#end 
 
 	public inline function add( src : Bytes ) {
 		#if neko
@@ -73,6 +100,21 @@ class BytesBuffer {
 		b.writeBytes(src.getData());
 		#elseif php
 		b += cast src.getData();
+		#elseif js
+		if (js.Lib.isTypedArraySupported) {
+			// grow array that we can store the bytes 
+			var newSize = size + src.length;
+			growTo(newSize);
+			// blit the bytes over			
+			b.blit(size, src, 0, src.length);
+			size += src.length;
+		}
+		else {
+			var b1 = b;
+			var b2 = src.getData();
+			for( i in 0...src.length )
+				b.push(b2[i]);
+		}
 		#else
 		var b1 = b;
 		var b2 = src.getData();
@@ -91,6 +133,21 @@ class BytesBuffer {
 		b.writeBytes(src.getData(),pos,len);
 		#elseif php
 		b += untyped __call__("substr", src.b, pos, len);
+		#elseif js
+		if (js.Lib.isTypedArraySupported) {
+			// grow array that we can store the bytes 
+			var newSize = size + len;
+			growTo(newSize);
+			// blit the bytes over			
+			b.blit(size, src, src, len);
+			size += length;
+		}
+		else {
+			var b1 = b;
+			var b2 = src.getData();
+			for( i in pos...pos+len )
+				b.push(b2[i]);
+		}		
 		#else
 		var b1 = b;
 		var b2 = src.getData();
@@ -112,6 +169,14 @@ class BytesBuffer {
 		b.position = 0;
 		#elseif php
 		var bytes = new Bytes(b.length, cast b);
+		#elseif js
+		var bytes:Bytes;
+		if (js.Lib.isTypedArraySupported) {
+			bytes = new Bytes(b.length, b.subarray(0, size));
+		}
+		else {
+			bytes =  new Bytes(b.length, b);
+		}
 		#else
 		var bytes = new Bytes(b.length,b);
 		#end

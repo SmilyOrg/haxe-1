@@ -28,6 +28,7 @@ import js.Dom;
 
 class Lib {
 
+	public static var isTypedArraySupported : Bool;
 	public static var isIE : Bool;
 	public static var isOpera : Bool;
 	public static var document : Document;

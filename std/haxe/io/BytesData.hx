@@ -33,6 +33,14 @@ package haxe.io;
 #elseif cpp
 	extern class Unsigned_char__ { }
 	typedef BytesData = Array<Unsigned_char__>;
+#elseif js
+	typedef BytesData = ArrayAccess<Int>;
+	extern class Uint8Array : ArrayAccess<Int>
+	{
+		public function new(length:Int);	
+		
+		public var length(default, null) : Int;
+	}
 #else
 	typedef BytesData = Array<Int>;
 #end

@@ -43,6 +43,8 @@ class Bytes {
 		return untyped __call__("ord", b[pos]);
 		#elseif cpp
 		return untyped b[pos];
+		#elseif js
+		return b[pos];
 		#else
 		return b[pos];
 		#end
@@ -57,6 +59,8 @@ class Bytes {
 		b[pos] = untyped __call__("chr", v);
 		#elseif cpp
 		untyped b[pos] = v;
+		#elseif js
+		b[pos] = v & 0xFF;
 		#else
 		b[pos] = v & 0xFF;
 		#end
@@ -73,8 +77,21 @@ class Bytes {
 		b = untyped __php__("substr($this->b, 0, $pos) . substr($src->b, $srcpos, $len) . substr($this->b, $pos+$len)"); //__call__("substr", b, 0, pos)+__call__("substr", src.b, srcpos, len)+__call__("substr", b, pos+len);
 		#elseif flash9
 		b.position = pos;
-		b.writeBytes(src.b,srcpos,len);
+		b.writeBytes(src.b, srcpos, len);
+		#elseif js
+		if (js.Lib.isTypedArraySupported) {
+			b.set(src.b.subarray(srcpos, srcpos + len), pos);
+		}
+		else {
+			slowBlit(pos, src, srcpos, len);
+		}		
 		#else
+		slowBlit(pos, src, srcpos, len);
+		#end
+	}
+	
+	#if (!neko && !php && !flash9)
+	private function slowBlit( pos : Int, src : Bytes, srcpos : Int, len : Int ) : Void {
 		var b1 = b;
 		var b2 = src.b;
 		if( b1 == b2 && pos > srcpos ) {
@@ -87,8 +104,8 @@ class Bytes {
 		}
 		for( i in 0...len )
 			b1[i+pos] = b2[i+srcpos];
-		#end
 	}
+	#end
 
 	public function sub( pos : Int, len : Int ) : Bytes {
 		#if !neko
@@ -104,6 +121,13 @@ class Bytes {
 		#elseif php
 		// TODO: test me
 		return new Bytes(len, untyped __call__("substr", b, pos, len));
+		#elseif js
+		if (js.Lib.isTypedArraySupported) {
+			return new Bytes(len, b.subarray(pos, pos + len));
+		}
+		else {
+			return new Bytes(len,b.slice(pos,pos+len));
+		}		
 		#else
 		return new Bytes(len,b.slice(pos,pos+len));
 		#end
@@ -241,7 +265,18 @@ class Bytes {
 		#elseif cpp
 		var a = new BytesData();
 		if (length>0) a[length-1] = untyped 0;
-		return new Bytes(length,a);
+		return new Bytes(length, a);
+		#elseif js
+		var b:BytesData;
+		if (js.Lib.isTypedArraySupported) {
+			b = new Uint8Array();
+		}
+		else {
+			b = new Array();
+			for( i in 0...length )
+				b.push(0);
+		}	
+		return new Bytes(length,b);
 		#else
 		var a = new Array();
 		for( i in 0...length )
